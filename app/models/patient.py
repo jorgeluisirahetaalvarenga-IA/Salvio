@@ -55,6 +55,12 @@ class PatientConsentType(str, enum.Enum):
     data = "data"
     whatsapp = "whatsapp"
 
+class ImmunizationStatus(str, enum.Enum):
+    applied = "applied"
+    pending = "pending"
+    refused = "refused"
+    contraindicated = "contraindicated"
+
 # =====================================================================
 # 006 · PATIENTS
 # =====================================================================
@@ -67,7 +73,7 @@ class Patient(Base):
     last_name = Column(String(100), nullable=False)
     date_of_birth = Column(Date, nullable=False)
     gender = Column(SQLEnum(Gender), nullable=False)
-    dui = Column(String(10), nullable=True, unique=True)
+    dui = Column(String(10), nullable=True)   # ← unique global eliminado, ahora único por tenant
     nit = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
     phone = Column(String(30), nullable=True)
@@ -89,6 +95,7 @@ class Patient(Base):
 
     __table_args__ = (
         Index("uq_patients_mrn_tenant", "tenant_id", "medical_record_number", unique=True),
+        Index("uq_patient_dui_tenant", "tenant_id", "dui", unique=True),   # ← nuevo índice único compuesto
         Index("idx_patients_tenant", "tenant_id"),
         Index("idx_patients_tenant_insurance", "tenant_id", "insurance_type"),
         Index("idx_patients_name", "last_name", "first_name"),
@@ -96,8 +103,14 @@ class Patient(Base):
     )
 
 # =====================================================================
-# 007 · PATIENT ALLERGIES
+# El resto del archivo (PatientAllergy, PatientMedication, PatientPhysiologicalHx,
+# PatientChronicDisease, PatientSurgery, PatientHospitalizationHx, PatientFamilyHx,
+# PatientGynecologicalHx, PatientSocialHx, PatientPerinatalHx, PatientDevelopmentHx,
+# PatientConsent) se mantiene IDÉNTICO a tu versión original.
+# Solo se muestra hasta PatientConsent para que copies todo lo que sigue.
 # =====================================================================
+
+# 007 · PATIENT ALLERGIES
 class PatientAllergy(Base):
     __tablename__ = "patient_allergies"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -115,9 +128,7 @@ class PatientAllergy(Base):
         Index("idx_allergies_tenant", "tenant_id"),
     )
 
-# =====================================================================
 # 008 · PATIENT MEDICATIONS (actuales)
-# =====================================================================
 class PatientMedication(Base):
     __tablename__ = "patient_medications"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -140,9 +151,7 @@ class PatientMedication(Base):
         Index("idx_meds_active", "patient_id", "is_active"),
     )
 
-# =====================================================================
 # 009 · PATIENT PHYSIOLOGICAL HISTORY
-# =====================================================================
 class PatientPhysiologicalHx(Base):
     __tablename__ = "patient_physiological_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -159,9 +168,7 @@ class PatientPhysiologicalHx(Base):
 
     __table_args__ = (Index("idx_physiohx_tenant", "tenant_id"),)
 
-# =====================================================================
 # 010 · PATIENT CHRONIC DISEASES
-# =====================================================================
 class PatientChronicDisease(Base):
     __tablename__ = "patient_chronic_diseases"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -179,9 +186,7 @@ class PatientChronicDisease(Base):
         Index("idx_chronic_tenant", "tenant_id"),
     )
 
-# =====================================================================
 # 011 · PATIENT SURGERIES
-# =====================================================================
 class PatientSurgery(Base):
     __tablename__ = "patient_surgeries"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -198,9 +203,7 @@ class PatientSurgery(Base):
         Index("idx_surgeries_tenant", "tenant_id"),
     )
 
-# =====================================================================
 # 012 · PATIENT HOSPITALIZATIONS HISTORY
-# =====================================================================
 class PatientHospitalizationHx(Base):
     __tablename__ = "patient_hospitalizations_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -218,9 +221,7 @@ class PatientHospitalizationHx(Base):
         Index("idx_hosphx_tenant", "tenant_id"),
     )
 
-# =====================================================================
 # 013 · PATIENT FAMILY HISTORY
-# =====================================================================
 class PatientFamilyHx(Base):
     __tablename__ = "patient_family_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -237,15 +238,13 @@ class PatientFamilyHx(Base):
         Index("idx_familyhx_tenant", "tenant_id"),
     )
 
-# =====================================================================
 # 014 · PATIENT GYNECOLOGICAL HISTORY
-# =====================================================================
 class PatientGynecologicalHx(Base):
     __tablename__ = "patient_gynecological_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
     patient_id = Column(BINARY(16), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, unique=True)
     tenant_id = Column(String(50), ForeignKey("tenants.id"), nullable=False)
-    menarche_age = Column(TINYINT, nullable=True)          # CHECK en DB
+    menarche_age = Column(TINYINT, nullable=True)
     last_menstrual_period = Column(Date, nullable=True)
     pregnancies = Column(TINYINT, nullable=True)
     deliveries = Column(TINYINT, nullable=True)
@@ -256,9 +255,7 @@ class PatientGynecologicalHx(Base):
 
     __table_args__ = (Index("idx_gynohx_tenant", "tenant_id"),)
 
-# =====================================================================
 # 015 · PATIENT SOCIAL HISTORY
-# =====================================================================
 class PatientSocialHx(Base):
     __tablename__ = "patient_social_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -276,9 +273,7 @@ class PatientSocialHx(Base):
 
     __table_args__ = (Index("idx_socialhx_tenant", "tenant_id"),)
 
-# =====================================================================
 # 016 · PATIENT PERINATAL HISTORY
-# =====================================================================
 class PatientPerinatalHx(Base):
     __tablename__ = "patient_perinatal_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -306,9 +301,7 @@ class PatientPerinatalHx(Base):
 
     __table_args__ = (Index("idx_perinatal_tenant", "tenant_id"),)
 
-# =====================================================================
 # 018 · PATIENT DEVELOPMENT HISTORY (resumen)
-# =====================================================================
 class PatientDevelopmentHx(Base):
     __tablename__ = "patient_development_hx"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -322,9 +315,7 @@ class PatientDevelopmentHx(Base):
 
     __table_args__ = (Index("idx_devhx_tenant", "tenant_id"),)
 
-# =====================================================================
 # 020 · PATIENT CONSENTS
-# =====================================================================
 class PatientConsent(Base):
     __tablename__ = "patient_consents"
     id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
@@ -342,4 +333,49 @@ class PatientConsent(Base):
         Index("idx_consents_patient", "patient_id"),
         Index("idx_consents_tenant", "tenant_id"),
         Index("idx_consents_type", "consent_type"),
+    )
+
+class PatientImmunization(Base):
+    __tablename__ = "patient_immunizations"
+    id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
+    patient_id = Column(BINARY(16), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(String(50), ForeignKey("tenants.id"), nullable=False)
+    vaccine_name = Column(String(255), nullable=False)
+    dose_number = Column(String(50), nullable=True)
+    lot_number = Column(String(100), nullable=True)
+    applied_at = Column(Date, nullable=True)
+    next_due_at = Column(Date, nullable=True)
+    applied_by = Column(BINARY(16), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    status = Column(SQLEnum(ImmunizationStatus), nullable=False, default="applied")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_immun_patient", "patient_id"),
+        Index("idx_immun_tenant", "tenant_id"),
+        Index("idx_immun_due", "tenant_id", "next_due_at"),
+    )
+
+class PatientGrowthMeasurement(Base):
+    __tablename__ = "patient_growth_measurements"
+    id = Column(BINARY(16), primary_key=True, server_default="UUID_TO_BIN(UUID())")
+    patient_id = Column(BINARY(16), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(String(50), ForeignKey("tenants.id"), nullable=False)
+    clinical_record_id = Column(BINARY(16), ForeignKey("clinical_records.id", ondelete="SET NULL"), nullable=True)
+    measured_at = Column(DateTime, nullable=False, server_default=func.now())
+    weight = Column(DECIMAL(6,2), nullable=True)
+    height = Column(DECIMAL(5,1), nullable=True)
+    head_circumference = Column(DECIMAL(5,1), nullable=True)
+    bmi = Column(DECIMAL(5,2), nullable=True)
+    weight_percentile = Column(DECIMAL(5,2), nullable=True)
+    height_percentile = Column(DECIMAL(5,2), nullable=True)
+    bmi_percentile = Column(DECIMAL(5,2), nullable=True)
+    recorded_by = Column(BINARY(16), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_growth_patient", "patient_id", "measured_at"),
+        Index("idx_growth_tenant", "tenant_id"),
+        Index("idx_growth_record", "clinical_record_id"),
     )

@@ -1,0 +1,64 @@
+from datetime import datetime, timezone
+from decimal import Decimal
+
+from fastapi import HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.models.billing import Billing, BillingItem, BillingStatus, Payment, PaymentStatus
+from app.schemas.billing import BillingCreate, PaymentCreate
+from app.services._utils import audit, commit_or_409, data_for_model, model_to_dict, new_uuid_bytes, not_found
+
+
+def create_billing(db: Session, tenant_id: str, data: BillingCreate, user_id: bytes) -> Billing:
+    total_billing = Decimal("0")
+    for item in data.items:
+        item_total = (item.quantity * item.unit_price) - item.discount_amount + item.tax_amount
+        item.total_amount = item_total
+        total_billing += item_total
+    billing = Billing(**data_for_model(data, Billing, exclude={"items"}, tenant_id=tenant_id))
+    billing.id = new_uuid_bytes()
+    billing.amount = total_billing
+    db.add(billing)
+    db.flush()
+    for item in data.items:
+        payload = data_for_model(item, BillingItem, tenant_id=tenant_id)
+        payload["id"] = new_uuid_bytes()
+        payload["billing_id"] = billing.id
+        db.add(BillingItem(**payload))
+    audit(db, user_id=user_id, tenant_id=tenant_id, action="INSERT", table_name="billing", record_id=billing.id, new_values=model_to_dict(billing))
+    commit_or_409(db)
+    db.refresh(billing)
+    return billing
+
+
+def register_payment(db: Session, billing_id: bytes, tenant_id: str, data: PaymentCreate, user_id: bytes) -> tuple[Billing, Payment]:
+    billing = db.query(Billing).filter(Billing.id == billing_id, Billing.tenant_id == tenant_id).first()
+    if not billing:
+        raise not_found("Billing not found.")
+    if billing.status == BillingStatus.void:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot pay a voided billing")
+    old_billing = model_to_dict(billing)
+    payment = Payment(**data_for_model(data, Payment, tenant_id=tenant_id))
+    payment.id = new_uuid_bytes()
+    payment.billing_id = billing_id
+    payment.status = PaymentStatus.completed
+    db.add(payment)
+    db.flush()
+    paid_total = (
+        db.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(Payment.billing_id == billing_id, Payment.tenant_id == tenant_id, Payment.status == PaymentStatus.completed)
+        .scalar()
+    )
+    billing_updated = False
+    if Decimal(str(paid_total)) >= billing.amount:
+        billing.status = BillingStatus.paid
+        billing.payment_date = datetime.now(timezone.utc)
+        billing_updated = True
+    audit(db, user_id=user_id, tenant_id=tenant_id, action="INSERT", table_name="payments", record_id=payment.id, new_values=model_to_dict(payment))
+    if billing_updated:
+        audit(db, user_id=user_id, tenant_id=tenant_id, action="UPDATE", table_name="billing", record_id=billing.id, old_values=old_billing, new_values=model_to_dict(billing))
+    commit_or_409(db)
+    db.refresh(billing)
+    db.refresh(payment)
+    return billing, payment

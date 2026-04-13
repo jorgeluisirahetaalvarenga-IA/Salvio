@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Text, SmallInteger, Index
+from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Text, SmallInteger, Index, DECIMAL
 from sqlalchemy.dialects.mysql import BINARY, TINYINT
 from sqlalchemy.sql import func
 from app.database import Base

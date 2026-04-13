@@ -10,7 +10,7 @@ class AuditLog(Base):
     user_id = Column(BINARY(16), nullable=True)
     action = Column(String(50), nullable=False)
     table_name = Column(String(100), nullable=False)
-    record_id = Column(String(36), nullable=True)
+    record_id = Column(BINARY(16), nullable=True)   # ← BINARY(16) en lugar de String(36)
     old_values = Column(JSON, nullable=True)
     new_values = Column(JSON, nullable=True)
     ip_address = Column(String(45), nullable=True)
